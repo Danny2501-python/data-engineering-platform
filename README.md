@@ -145,15 +145,15 @@ cd e2e-de-ingestion
 
 ### 2. Configure environment variables
 
-Create the root `.env` file from the provided template:
+From the project root, create the root environment file:
 
-```
+```bash
 cp .env.example .env
 ```
 
-Fill in the required Neon connection values:
+Edit `.env` and fill in your Neon PostgreSQL connection details:
 
-```
+```dotenv
 NEON_HOST=
 NEON_PORT=5432
 NEON_DATABASE=
@@ -162,9 +162,31 @@ NEON_PASSWORD=
 NEON_SSLMODE=require
 ```
 
-Configure `airflow/.env` as required by `airflow/docker-compose.yaml`, including the database connection variables and any Airflow-specific settings needed by the containers.
+Create the Airflow environment file:
 
-**Never commit** `.env` **or** `airflow/.env`**.** The example file should contain placeholders only.
+```bash
+cp airflow/.env.example airflow/.env
+```
+
+Generate a Fernet key using Python:
+
+```bash
+python -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+```
+
+Generate a separate JWT secret:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Copy the generated values into the matching variables in `airflow/.env`:
+- `FERNET_KEY`
+- `AIRFLOW__API_AUTH__JWT_SECRET`
+
+Replace `_AIRFLOW_WWW_USER_PASSWORD` with a strong, unique password. Keep the remaining local path and image settings consistent with your environment.
+
+**Never commit `.env` or `airflow/.env`.** The example files contain placeholders only; use unique secrets for each environment.
 
 ### 3. Start Airflow
 
