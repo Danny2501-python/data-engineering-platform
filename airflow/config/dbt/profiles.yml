@@ -1,0 +1,13 @@
+e2e_de_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('NEON_HOST') }}"
+      port: "{{ env_var('NEON_PORT', '5432') | int }}"
+      user: "{{ env_var('NEON_USER') }}"
+      password: "{{ env_var('NEON_PASSWORD') }}"
+      dbname: "{{ env_var('NEON_DATABASE') }}"
+      schema: analytics
+      threads: 4
+      sslmode: "{{ env_var('NEON_SSLMODE', 'require') }}"

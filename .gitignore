@@ -1,0 +1,45 @@
+# Secrets and environment variables
+.env
+.env.*
+!.env.example
+airflow/.env
+
+# Python virtual environment and cache
+.venv/
+__pycache__/
+*.py[cod]
+
+# Generated data and dbt artifacts
+data/
+
+
+cat > .gitignore <<'EOF'
+# Secrets and environment variables
+.env
+.env.*
+!.env.example
+airflow/.env
+
+# Python virtual environment and cache
+.venv/
+__pycache__/
+*.py[cod]
+
+# Generated data and dbt artifacts
+data/
+logs/
+target/
+dbt_packages/
+
+# Airflow generated files
+airflow/logs/
+airflow/config/airflow.cfg
+
+# IDE and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local dbt user configuration
+**/.user.yml
