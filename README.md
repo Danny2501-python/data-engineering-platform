@@ -1,63 +1,233 @@
-# End-to-End Data Engineering — Ingestion Starter
+# End-to-End Data Engineering Pipeline
 
-Initial flow: Neon PostgreSQL (`source` schema) -> Python -> local Parquet Bronze files.
+An end-to-end data engineering project that ingests transactional data from Neon PostgreSQL, stores Bronze-layer snapshots in Parquet, loads data into a warehouse, transforms it with dbt, and orchestrates the workflow using Apache Airflow.
 
-This version performs full snapshots, not incremental CDC yet. Each run has a unique UTC run ID, so reruns do not overwrite prior snapshots.
+## Project Overview
 
-## 1. Requirements
-- Windows 10/11
-- Python 3.10+ (3.11 or 3.12 recommended)
-- Network access to Neon
+This project demonstrates a complete data pipeline, from source ingestion to analytics-ready data models and data quality testing.
 
-Check Python in PowerShell:
-```powershell
-py --version
+**Key capabilities**
+
+- Extract data from a Neon PostgreSQL source database.
+- Store Bronze-layer snapshots as Parquet files with a manifest.
+- Load ingested data into the data warehouse.
+- Transform source data using dbt staging and mart models.
+- Run dbt data quality tests.
+- Orchestrate the workflow with Apache Airflow and Docker Compose.
+
+## Architecture
+
+```
+flowchart LR
+    A["Neon PostgreSQL<br/>Source schema"]
+    B["Python ingestion<br/>src/ingest.py"]
+    C["Bronze layer<br/>Parquet + manifest"]
+    D["Warehouse loader<br/>src/load_warehouse.py"]
+    E["Warehouse tables"]
+    F["dbt staging models"]
+    G["dbt mart models"]
+    H["Analytics schema"]
+
+    A --> B --> C --> D --> E --> F --> G --> H
+    I["Apache Airflow"] -. orchestrates .-> B
+    I -. orchestrates .-> D
+    I -. orchestrates .-> F
+    I -. orchestrates .-> G
 ```
 
-## 2. Configure Neon credentials
-In PowerShell, from this project folder:
-```powershell
-Copy-Item .env.example .env
-notepad .env
+## Technology Stack
+
+| Technology      | Purpose                                    |
+| --------------- | ------------------------------------------ |
+| Python          | Data extraction and warehouse loading      |
+| Neon PostgreSQL | Source database                            |
+| Parquet         | Bronze-layer data storage                  |
+| Apache Airflow  | Pipeline orchestration and task monitoring |
+| Docker Compose  | Local containerized environment            |
+| dbt             | SQL transformations and data quality tests |
+| Git and GitHub  | Version control and project documentation  |
+
+## Pipeline Workflow
+
+The Airflow DAG is named `e2e_neon_to_warehouse`.
+
+| Task                       | Description                                             |
+| -------------------------- | ------------------------------------------------------- |
+| `ingest_source_to_bronze`  | Extract source data and create Bronze Parquet snapshots |
+| `load_bronze_to_warehouse` | Load Bronze data into warehouse tables                  |
+| `dbt_run`                  | Execute dbt staging and mart transformations            |
+| `dbt_test`                 | Run data quality tests against dbt models               |
+
+The workflow runs these tasks in sequence. Each task must complete successfully before the next dependent task proceeds.
+
+## Source Data
+
+The sample source database contains the following tables:
+
+| Table         | Sample row count |
+| ------------- | ---------------- |
+| `customers`   | 100              |
+| `products`    | 50               |
+| `orders`      | 1,000            |
+| `order_items` | 3,000            |
+| `payments`    | 1,000            |
+
+These counts describe the current sample dataset and may change if the source data is updated.
+
+## Data Modeling
+
+### Staging models
+
+The staging layer prepares source data for downstream transformations:
+
+- `stg_customers`
+- `stg_products`
+- `stg_orders`
+- `stg_order_items`
+- `stg_payments`
+
+### Analytics marts
+
+The marts layer provides analytics-ready tables in the `analytics` schema.
+
+| Model             | Purpose                     |
+| ----------------- | --------------------------- |
+| `dim_customers`   | Customer dimension          |
+| `dim_products`    | Product dimension           |
+| `fct_orders`      | Order-level fact table      |
+| `fct_order_items` | Order-item-level fact table |
+
+The dimension and fact models separate descriptive entities from transactional measures, making the data easier to use for reporting and analysis.
+
+## Repository Structure
+
 ```
-Fill in host, database, role, and password from Neon. Host must be only the hostname, without `postgresql://`, username, or `/neondb`. Keep `NEON_SSLMODE=require`. Never share `.env` or commit it to Git.
-
-## 3. Create environment and install packages
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-If activation is blocked, run this in the same PowerShell window and retry:
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
-```
-
-## 4. Run ingestion
-```powershell
-python src/ingest.py
-```
-The script tests the connection, extracts `customers`, `products`, `orders`, `order_items`, and `payments`, writes Parquet files plus per-table manifests, and logs row counts/errors.
-
-Output example:
-```text
-data/bronze/source/customers/load_date=YYYY-MM-DD/run_id=YYYYMMDDTHHMMSSZ/customers.parquet
-data/bronze/source/run_YYYYMMDDTHHMMSSZ.json
+e2e-de-ingestion/
+├── airflow/
+│   ├── config/
+│   │   └── dbt/
+│   │       └── profiles.yml
+│   ├── dags/
+│   │   └── e2e_pipeline.py
+│   ├── Dockerfile
+│   └── docker-compose.yaml
+├── models/
+│   ├── staging/
+│   └── marts/
+├── sql/
+│   └── verify_source.sql
+├── src/
+│   ├── ingest.py
+│   └── load_warehouse.py
+├── .env.example
+├── .gitignore
+├── dbt_project.yml
+├── requirements.txt
+└── README.md
 ```
 
-The `data/` directory is excluded by `.gitignore` because it contains extracted data.
+Generated data, logs, dbt artifacts, virtual environments, and local secret files are excluded from version control.
 
-## 5. Verify
-Look for `.parquet` files under `data/bronze/source/`. Expected counts if the source started empty and the sample seed ran successfully: customers 100, products 50, orders 1000, order_items 3000, payments 1000. Existing rows may make counts higher.
+## Getting Started
 
-## Next steps
-1. Incremental extraction and persisted watermarks.
-2. Separate warehouse target and idempotent loads.
-3. dbt staging/intermediate/mart models and tests.
-4. Airflow orchestration, retries, alerts, and SLA checks.
-5. CI/CD.
-6. Optionally replace local Bronze files with MinIO/S3 + Iceberg.
+### Prerequisites
 
-Do not commit passwords, `.env`, or real customer data.
+- Git
+- Docker Desktop with Docker Compose
+- A Neon PostgreSQL database with the required source tables
+
+### 1. Clone the repository
+
+```
+git clone https://github.com/Danny2501-python/e2e-de-ingestion.git
+cd e2e-de-ingestion
+```
+
+### 2. Configure environment variables
+
+Create the root `.env` file from the provided template:
+
+```
+cp .env.example .env
+```
+
+Fill in the required Neon connection values:
+
+```
+NEON_HOST=
+NEON_PORT=5432
+NEON_DATABASE=
+NEON_USER=
+NEON_PASSWORD=
+NEON_SSLMODE=require
+```
+
+Configure `airflow/.env` as required by `airflow/docker-compose.yaml`, including the database connection variables and any Airflow-specific settings needed by the containers.
+
+**Never commit** `.env` **or** `airflow/.env`**.** The example file should contain placeholders only.
+
+### 3. Start Airflow
+
+From the project root:
+
+```
+cd airflow
+docker compose up -d --build
+```
+
+Open the Airflow web interface:
+
+[http://localhost:8080](http://localhost:8080)
+
+Use the credentials configured for your local Airflow environment.
+
+### 4. Run the pipeline
+
+1. Open the Airflow web interface.
+2. Find the `e2e_neon_to_warehouse` DAG.
+3. Enable the DAG if it is paused.
+4. Trigger a DAG run.
+5. Monitor the task states and logs until the pipeline completes.
+
+A successful run should show all four pipeline tasks as successful.
+
+### 5. Stop the environment
+
+From the `airflow` directory:
+
+```
+docker compose down
+```
+
+To inspect service logs:
+
+```
+docker compose logs -f
+```
+
+## Data Quality and Validation
+
+The pipeline includes a dedicated `dbt_test` task after transformations.
+
+The project also includes `sql/verify_source.sql` for source-data verification. Additional tests and business rules can be added as the project evolves.
+
+## Security Considerations
+
+- Store credentials in local environment files.
+- Keep `.env` and `airflow/.env` out of version control.
+- Do not commit database passwords, access tokens, or production data.
+- Use `.env.example` to document required environment variable names without exposing their values.
+- Use a dedicated database account with only the permissions required by the pipeline.
+
+## Future Improvements
+
+- Add incremental ingestion and change-data handling.
+- Add automated CI checks for SQL, dbt models, and pipeline configuration.
+- Improve retry policies, alerting, and operational monitoring.
+- Add automated integration tests and pipeline performance metrics.
+
+## Author
+
+**Danny2501-python**
+
+GitHub: [https://github.com/Danny2501-python](https://github.com/Danny2501-python)
